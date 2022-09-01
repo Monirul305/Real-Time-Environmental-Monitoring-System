@@ -20,4 +20,4 @@ batteries are in series to provide enough power to the GSM. Since the battery ou
 are not harmed.
 
 While in work, the system code defines the delay after which the system automatically goes into charging mode. For example, the system can be set to 5 minutes of charging
-and then 2 minutes of discharging(fixed) in loop. During discharging, the system sends data from the sensors to the cloud.
+and then 2 minutes of discharging (fixed) in loop. During discharging, the system sends data from the sensors to the cloud.
