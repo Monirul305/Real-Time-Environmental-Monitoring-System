@@ -1,4 +1,4 @@
-# Environmental Monitoring System
+# Real Time Environmental Monitoring System
 
 **Creators: <br />
 Monirul Islam, Dept of EEE, BUET <br />
