@@ -1,0 +1,183 @@
+#include <SoftwareSerial.h>
+SoftwareSerial gprsSerial(2, 3);
+
+#include <MQ135.h>
+#include <DHT.h>
+
+
+#define PIN_MQ135 A1 // MQ135 Analog Input Pin
+#define DHTPIN A2 // DHT Digital Input Pin
+#define DHTTYPE DHT11 // DHT11 or DHT22, depends on your sensor
+
+MQ135 mq135_sensor(PIN_MQ135);
+DHT dht(DHTPIN, DHTTYPE);
+
+float temperature, humidity; // Temp and Humid floats, will be measured by the DHT
+float correctedPPM;
+
+int state_off = 1, state_on = 0;
+int r1 = 5, r2 = 6, r3 = 7;
+
+
+void setup() {
+  gprsSerial.begin(9600);               // the GPRS baud rate
+  Serial.begin(9600);
+
+  pinMode(r1, OUTPUT);
+  pinMode(r2, OUTPUT);
+  pinMode(r3, OUTPUT);
+
+  dht.begin();
+  delay(1000);
+}
+
+
+void loop()
+{
+
+
+  ////////////////////////////////////////////POWER ON GSM
+  Serial.println("POWER ON GSM:");
+  Serial.println("...");
+  digitalWrite(r1, state_on);
+  digitalWrite(r2, state_on);
+  digitalWrite(r3, state_on);
+  delay(30000);
+
+  //////////////////////////////////////////READ SENSOR VALUES
+  Serial.println("READ SENSOR VALUES:");
+  Serial.println("...");
+  sensor_read();
+
+  Serial.print("Temperature = ");
+  Serial.print(temperature);
+  Serial.println(" °C");
+  Serial.print("Humidity = ");
+  Serial.print(humidity);
+  Serial.println(" %");
+  Serial.print("particles = ");
+  Serial.print(correctedPPM);
+  Serial.println(" ppm");
+
+
+  ////////////////////////////////////////////////SEND DATA
+  Serial.println("SEND DATA:");
+  Serial.println("...");
+  send_data();
+
+  ////////////////////////////////////////////////POWER OFF THE GSM
+  Serial.println("POWER OFF THE GSM:");
+  digitalWrite(r1, state_off);
+  digitalWrite(r2, state_off);
+  digitalWrite(r3, state_off);
+  Serial.println("...");
+  delay(60000);
+
+}
+
+
+void send_data()
+{
+
+  if (gprsSerial.available())
+    Serial.write(gprsSerial.read());
+
+  gprsSerial.println("AT");
+  delay(1000);
+
+  gprsSerial.println("AT+CPIN?");
+  delay(1000);
+
+  gprsSerial.println("AT+CREG?");
+  delay(1000);
+
+  gprsSerial.println("AT+CGATT?");
+  delay(1000);
+
+  gprsSerial.println("AT+CIPSHUT");
+  delay(1000);
+
+  gprsSerial.println("AT+CIPSTATUS");
+  delay(2000);
+
+  gprsSerial.println("AT+CIPMUX=0");
+  delay(2000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CSTT=\"airtelgprs.com\"");//start task and setting the APN,
+  delay(1000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIICR");//bring up wireless connection
+  delay(3000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIFSR");//get local IP adress
+  delay(2000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSPRT=0");
+  delay(3000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",\"80\"");//start up the connection
+  delay(6000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSEND");//begin send data to remote server
+  delay(4000);
+  ShowSerialData();
+
+  String str = "GET https://api.thingspeak.com/update?api_key=MSOGKMFNU1MTFFVY&field1=" + String(temperature) + "&field2=" + String(humidity) + "&field3=" + String(correctedPPM);
+  Serial.println(str);
+  gprsSerial.println(str);//begin send data to remote server
+
+  delay(4000);
+  ShowSerialData();
+
+  gprsSerial.println((char)26);//sending
+  delay(5000);//waitting for reply, important! the time is base on the condition of internet
+  gprsSerial.println();
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSHUT");//close the connection
+  delay(100);
+  ShowSerialData();
+}
+void ShowSerialData()
+{
+  while (gprsSerial.available() != 0)
+    Serial.write(gprsSerial.read());
+  delay(5000);
+
+}
+
+
+
+
+void sensor_read()
+{
+  humidity = dht.readHumidity();
+  temperature = dht.readTemperature();
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
+
+  float rzero = mq135_sensor.getRZero();
+  float correctedRZero = mq135_sensor.getCorrectedRZero(temperature, humidity);
+  float resistance = mq135_sensor.getResistance();
+  float ppm = mq135_sensor.getPPM();
+  correctedPPM = mq135_sensor.getCorrectedPPM(temperature, humidity);
+  delay(1000);
+
+}
